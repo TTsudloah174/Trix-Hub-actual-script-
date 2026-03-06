@@ -100,6 +100,7 @@ end)
 
 -- Elements (Auto Function Tab)
 local Toggle = ATab:Toggle({
+    Flag = "AutoBlackFlash",
     Title = "Auto Black Flash",
     Desc = "For Yuji",
     Icon = "zap",
@@ -117,6 +118,7 @@ local Toggle = ATab:Toggle({
 
 -- Elements (Settings Tab)
 local AutoExecToggle = STab:Toggle({
+    Flag = "AutoExecute",
     Title = "Auto Execute",
     Desc = "Auto execute script on Jujutsu Shenanigans server joins",
     Icon = "refresh-cw",
@@ -165,6 +167,7 @@ local ESPFunctionSection = ESPTab:Section({
 })
 
 local PlayerESPToggle = ESPFunctionSection:Toggle({
+    Flag = "PlayerESP",
     Title = "Player ESP",
     Desc = "Show ESP for players using Highlights",
     Icon = "users",
@@ -183,6 +186,7 @@ local PlayerESPToggle = ESPFunctionSection:Toggle({
 })
 
 local ItemsESPToggle = ESPFunctionSection:Toggle({
+    Flag = "ItemsESP",
     Title = "Items ESP",
     Desc = "Show ESP for items in workspace",
     Icon = "package",
@@ -206,6 +210,7 @@ local CustomizeSection = ESPTab:Section({
 })
 
 local FillColorPicker = CustomizeSection:Colorpicker({
+    Flag = "FillColor",
     Title = "Fill Color",
     Desc = "Highlight fill color",
     Default = Color3.fromRGB(255, 0, 0),
@@ -217,6 +222,7 @@ local FillColorPicker = CustomizeSection:Colorpicker({
 })
 
 local OutlineColorPicker = CustomizeSection:Colorpicker({
+    Flag = "OutlineColor",
     Title = "Outline Color",
     Desc = "Highlight outline color",
     Default = Color3.fromRGB(255, 255, 255),
@@ -228,6 +234,7 @@ local OutlineColorPicker = CustomizeSection:Colorpicker({
 })
 
 local TextColorPicker = CustomizeSection:Colorpicker({
+    Flag = "TextColor",
     Title = "Text Color",
     Desc = "ESP text color",
     Default = Color3.fromRGB(255, 255, 255),
@@ -244,6 +251,7 @@ local MiscSection = ESPTab:Section({
 })
 
 local PlayerNamesToggle = MiscSection:Toggle({
+    Flag = "PlayerNames",
     Title = "Player Names",
     Desc = "Show player names",
     Icon = "user",
@@ -261,6 +269,7 @@ local PlayerNamesToggle = MiscSection:Toggle({
 })
 
 local BoxESPToggle = MiscSection:Toggle({
+    Flag = "BoxESP",
     Title = "Box ESP",
     Desc = "Show boxes around players",
     Icon = "square",
@@ -278,6 +287,7 @@ local BoxESPToggle = MiscSection:Toggle({
 })
 
 local TracersToggle = MiscSection:Toggle({
+    Flag = "Tracers",
     Title = "Tracers",
     Desc = "Show lines to players",
     Icon = "share-2",
@@ -296,98 +306,105 @@ local TracersToggle = MiscSection:Toggle({
 
 -- Config Tab Elements
 local ConfigManager = Window.ConfigManager
-local selectedConfig = "Config1"
-local configList = {"Config1", "Config2", "Config3"}
+local ConfigName = "default"
 
-local ConfigDropdown = ConfigTab:Dropdown({
-    Title = "Select Configuration",
-    Values = {
-        {
-            Title = "Config 1",
-            Desc = "First configuration slot",
-            Icon = "file",
-            Callback = function()
-                selectedConfig = "Config1"
-                print("Selected: Config1")
-            end
-        },
-        {
-            Title = "Config 2",
-            Desc = "Second configuration slot",
-            Icon = "file",
-            Callback = function()
-                selectedConfig = "Config2"
-                print("Selected: Config2")
-            end
-        },
-        {
-            Title = "Config 3",
-            Desc = "Third configuration slot",
-            Icon = "file",
-            Callback = function()
-                selectedConfig = "Config3"
-                print("Selected: Config3")
-            end
-        },
-    }
+local ConfigNameInput = ConfigTab:Input({
+    Title = "Config Name",
+    Icon = "file-cog",
+    Placeholder = "Enter config name...",
+    Value = "default",
+    Callback = function(value)
+        ConfigName = value
+    end
 })
 
-local SaveConfigButton = ConfigTab:Button({
-    Title = "Save Configuration",
-    Desc = "Save current settings to selected config",
+ConfigTab:Space()
+
+local AllConfigs = ConfigManager:AllConfigs()
+local DefaultValue = table.find(AllConfigs, ConfigName) and ConfigName or nil
+
+local AllConfigsDropdown = ConfigTab:Dropdown({
+    Title = "All Configs",
+    Desc = "Select existing configs",
+    Values = AllConfigs,
+    Value = DefaultValue,
+    Callback = function(value)
+        ConfigName = value
+        ConfigNameInput:Set(value)
+    end
+})
+
+ConfigTab:Space()
+
+ConfigTab:Button({
+    Title = "Save Config",
     Icon = "save",
+    Justify = "Center",
     Color = Color3.fromHex("#4CAF50"),
     Callback = function()
-        local config = ConfigManager:CreateConfig(selectedConfig)
+        Window.CurrentConfig = ConfigManager:Config(ConfigName)
+        if Window.CurrentConfig:Save() then
+            WindUI:Notify({
+                Title = "Config Saved",
+                Desc = "Config '" .. ConfigName .. "' saved successfully",
+                Icon = "check",
+            })
+            print("Configuration saved to: " .. ConfigName)
+        end
         
-        -- Register all toggles and settings
-        config:Register("AutoBlackFlash", Toggle)
-        config:Register("AutoExecute", AutoExecToggle)
-        config:Register("PlayerESP", PlayerESPToggle)
-        config:Register("ItemsESP", ItemsESPToggle)
-        config:Register("PlayerNames", PlayerNamesToggle)
-        config:Register("BoxESP", BoxESPToggle)
-        config:Register("Tracers", TracersToggle)
-        config:Register("FillColor", FillColorPicker)
-        config:Register("OutlineColor", OutlineColorPicker)
-        config:Register("TextColor", TextColorPicker)
-        
-        config:Save()
-        print("Configuration saved to: " .. selectedConfig)
+        AllConfigsDropdown:Refresh(ConfigManager:AllConfigs())
     end
 })
 
-local LoadConfigButton = ConfigTab:Button({
-    Title = "Load Configuration",
-    Desc = "Load settings from selected config",
+ConfigTab:Space()
+
+ConfigTab:Button({
+    Title = "Load Config",
     Icon = "folder-open",
+    Justify = "Center",
     Color = Color3.fromHex("#2196F3"),
     Callback = function()
-        local config = ConfigManager:CreateConfig(selectedConfig)
-        config:Load()
-        print("Configuration loaded from: " .. selectedConfig)
+        Window.CurrentConfig = ConfigManager:CreateConfig(ConfigName)
+        if Window.CurrentConfig:Load() then
+            WindUI:Notify({
+                Title = "Config Loaded",
+                Desc = "Config '" .. ConfigName .. "' loaded successfully",
+                Icon = "refresh-cw",
+            })
+            print("Configuration loaded from: " .. ConfigName)
+        end
     end
 })
 
-local DeleteConfigButton = ConfigTab:Button({
-    Title = "Delete Configuration",
-    Desc = "Delete selected config file",
+ConfigTab:Space()
+
+ConfigTab:Button({
+    Title = "Delete Config",
     Icon = "trash",
+    Justify = "Center",
     Color = Color3.fromHex("#F44336"),
     Callback = function()
-        local config = ConfigManager:CreateConfig(selectedConfig)
-        config:Delete()
-        print("Configuration deleted: " .. selectedConfig)
+        Window.CurrentConfig = ConfigManager:CreateConfig(ConfigName)
+        Window.CurrentConfig:Delete()
+        WindUI:Notify({
+            Title = "Config Deleted",
+            Desc = "Config '" .. ConfigName .. "' deleted",
+            Icon = "trash",
+        })
+        AllConfigsDropdown:Refresh(ConfigManager:AllConfigs())
+        print("Configuration deleted: " .. ConfigName)
     end
 })
 
-local ResetConfigButton = ConfigTab:Button({
-    Title = "Reset Configuration",
-    Desc = "Reset all settings to default",
+ConfigTab:Space()
+
+ConfigTab:Button({
+    Title = "Reset to Defaults",
     Icon = "refresh-ccw",
+    Justify = "Center",
     Color = Color3.fromHex("#FF9800"),
     Callback = function()
-        -- Reset all toggles to default values
+        -- Reset all variables to default
         ABFY = false
         AutoExecute = true
         PlayerESPEnabled = false
@@ -406,6 +423,11 @@ local ResetConfigButton = ConfigTab:Button({
         removeBoxESP()
         removeTracers()
         
+        WindUI:Notify({
+            Title = "Reset Complete",
+            Desc = "All settings reset to defaults",
+            Icon = "refresh-ccw",
+        })
         print("Configuration reset to defaults!")
     end
 })
