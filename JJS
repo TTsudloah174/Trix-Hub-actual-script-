@@ -1,1 +1,916 @@
-local sS = game:GetHttps("https://raw.githubusercontent.com/titon134/Trix-hub/refs/heads/main/JJS")
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+local Window = WindUI:CreateWindow({
+    Title = "Trix Hub",
+    Icon = "door-open", 
+    Author = "by FGS_TTsud1oah",
+    Folder = "MySuperHub",
+    Size = UDim2.fromOffset(580, 460),
+    MinSize = Vector2.new(560, 350),
+    MaxSize = Vector2.new(850, 560),
+    Transparent = true,
+    Theme = "Dark",
+    Resizable = true,
+    SideBarWidth = 200,
+    BackgroundImageTransparency = 0.42,
+    HideSearchBar = true,
+    ScrollBarEnabled = false,
+    User = {
+        Enabled = true,
+        Anonymous = false,
+        Callback = function()
+            print("clicked")
+        end,
+    },
+    KeySystem = {
+        Key = { "meekid choap party", "," },
+        Note = "Key System",
+        URL = "",
+        SaveKey = true,
+    },
+})
+
+-- Tabs
+local ATab = Window:Tab({
+    Title = "Auto Function",
+    Icon = "crosshair",
+    Locked = false,
+})
+
+local STab = Window:Tab({
+    Title = "Settings",
+    Icon = "settings",
+    Locked = false,
+})
+
+local ESPTab = Window:Tab({
+    Title = "ESP",
+    Icon = "eye",
+    Locked = false,
+})
+
+local ConfigTab = Window:Tab({
+    Title = "Config",
+    Icon = "save",
+    Locked = false,
+})
+
+-- Global Variables
+local ABFY = false
+local AutoExecute = true
+local currentGame = "Unknown"
+local ItemsESPEnabled = false
+local itemESPConnections = {}
+local PlayerESPEnabled = false
+local playerESPConnections = {}
+local playerHighlights = {}
+
+-- ESP Customization Variables
+local ESPFillColor = Color3.fromRGB(255, 0, 0)
+local ESPOutlineColor = Color3.fromRGB(255, 255, 255)
+local ESPTextColor = Color3.fromRGB(255, 255, 255)
+local BoxESPEnabled = false
+local TracersEnabled = false
+local PlayerNamesEnabled = true
+
+-- ESP Storage
+local boxESPs = {}
+local tracerESPs = {}
+local nameESPs = {}
+
+-- Detect which game we're in
+task.spawn(function()
+    local success, placeName = pcall(function()
+        return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name
+    end)
+    
+    if success and placeName then
+        placeName = string.lower(placeName)
+        if string.find(placeName, "jujutsu") and string.find(placeName, "shenanigan") then
+            currentGame = "Jujutsu Shenanigans"
+            print("Detected game: Jujutsu Shenanigans")
+        elseif string.find(placeName, "jump") and string.find(placeName, "showdown") then
+            currentGame = "Jump Showdown"
+            print("Detected game: Jump Showdown")
+        else
+            currentGame = placeName
+            print("Detected game: " .. placeName)
+        end
+    end
+end)
+
+-- Elements (Auto Function Tab)
+local Toggle = ATab:Toggle({
+    Title = "Auto Black Flash",
+    Desc = "For Yuji",
+    Icon = "zap",
+    Type = "Toggle",
+    Value = false,
+    Callback = function(state)
+        ABFY = state
+        if state then
+            print("Auto Black Flash: ENABLED")
+        else
+            print("Auto Black Flash: DISABLED")
+        end
+    end
+})
+
+-- Elements (Settings Tab)
+local AutoExecToggle = STab:Toggle({
+    Title = "Auto Execute",
+    Desc = "Auto execute script on Jujutsu Shenanigans server joins",
+    Icon = "refresh-cw",
+    Type = "Toggle",
+    Value = true,
+    Callback = function(state)
+        AutoExecute = state
+        if state then
+            print("Auto Execute: ENABLED")
+        else
+            print("Auto Execute: DISABLED")
+        end
+    end
+})
+
+-- Auto Execute Setup (runs after UI is created)
+task.spawn(function()
+    -- Get the script URL from a global variable (set this before running the script)
+    local scriptURL = getgenv and getgenv().TrixHubURL or "YOUR_SCRIPT_URL_HERE"
+    
+    game:GetService("Players").LocalPlayer.OnTeleport:Connect(function(State)
+        if AutoExecute and State == Enum.TeleportState.Started then
+            local success, placeName = pcall(function()
+                return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name
+            end)
+
+            if success and placeName 
+                and string.find(string.lower(placeName), "jujutsu") 
+                and string.find(string.lower(placeName), "shenanigan") then
+                queue_on_teleport([[
+                    repeat task.wait() until game:IsLoaded()
+                    local url = getgenv().TrixHubURL or "]] .. scriptURL .. [["
+                    loadstring(game:HttpGet(url))()
+                ]])
+                print("Auto Execute: Queued script for next server")
+            end
+        end
+    end)
+    print("Auto Execute: Ready")
+    print("Auto Execute: Set getgenv().TrixHubURL before loading to use custom URL")
+end)
+
+-- ESP Tab Elements
+local ESPFunctionSection = ESPTab:Section({
+    Title = "ESP Function",
+})
+
+local PlayerESPToggle = ESPFunctionSection:Toggle({
+    Title = "Player ESP",
+    Desc = "Show ESP for players using Highlights",
+    Icon = "users",
+    Type = "Toggle",
+    Value = false,
+    Callback = function(state)
+        PlayerESPEnabled = state
+        if state then
+            print("Player ESP: ENABLED")
+            enablePlayerESP()
+        else
+            print("Player ESP: DISABLED")
+            disablePlayerESP()
+        end
+    end
+})
+
+local ItemsESPToggle = ESPFunctionSection:Toggle({
+    Title = "Items ESP",
+    Desc = "Show ESP for items in workspace",
+    Icon = "package",
+    Type = "Toggle",
+    Value = false,
+    Callback = function(state)
+        ItemsESPEnabled = state
+        if state then
+            print("Items ESP: ENABLED")
+            enableItemsESP()
+        else
+            print("Items ESP: DISABLED")
+            disableItemsESP()
+        end
+    end
+})
+
+-- Customize Section
+local CustomizeSection = ESPTab:Section({
+    Title = "Customize",
+})
+
+local FillColorPicker = CustomizeSection:Colorpicker({
+    Title = "Fill Color",
+    Desc = "Highlight fill color",
+    Default = Color3.fromRGB(255, 0, 0),
+    Transparency = 0.5,
+    Callback = function(color)
+        ESPFillColor = color
+        updatePlayerESPColors()
+    end
+})
+
+local OutlineColorPicker = CustomizeSection:Colorpicker({
+    Title = "Outline Color",
+    Desc = "Highlight outline color",
+    Default = Color3.fromRGB(255, 255, 255),
+    Transparency = 0,
+    Callback = function(color)
+        ESPOutlineColor = color
+        updatePlayerESPColors()
+    end
+})
+
+local TextColorPicker = CustomizeSection:Colorpicker({
+    Title = "Text Color",
+    Desc = "ESP text color",
+    Default = Color3.fromRGB(255, 255, 255),
+    Transparency = 0,
+    Callback = function(color)
+        ESPTextColor = color
+        updateItemESPColors()
+    end
+})
+
+-- Misc Section
+local MiscSection = ESPTab:Section({
+    Title = "Misc",
+})
+
+local PlayerNamesToggle = MiscSection:Toggle({
+    Title = "Player Names",
+    Desc = "Show player names",
+    Icon = "user",
+    Type = "Toggle",
+    Value = true,
+    Callback = function(state)
+        PlayerNamesEnabled = state
+        if state then
+            updatePlayerNames()
+        else
+            removePlayerNames()
+        end
+        print("Player Names: " .. (state and "ENABLED" or "DISABLED"))
+    end
+})
+
+local BoxESPToggle = MiscSection:Toggle({
+    Title = "Box ESP",
+    Desc = "Show boxes around players",
+    Icon = "square",
+    Type = "Toggle",
+    Value = false,
+    Callback = function(state)
+        BoxESPEnabled = state
+        if state then
+            updateBoxESP()
+        else
+            removeBoxESP()
+        end
+        print("Box ESP: " .. (state and "ENABLED" or "DISABLED"))
+    end
+})
+
+local TracersToggle = MiscSection:Toggle({
+    Title = "Tracers",
+    Desc = "Show lines to players",
+    Icon = "share-2",
+    Type = "Toggle",
+    Value = false,
+    Callback = function(state)
+        TracersEnabled = state
+        if state then
+            updateTracers()
+        else
+            removeTracers()
+        end
+        print("Tracers: " .. (state and "ENABLED" or "DISABLED"))
+    end
+})
+
+-- Config Tab Elements
+local ConfigManager = Window.ConfigManager
+local TrixConfig = ConfigManager:CreateConfig("TrixHubConfig")
+
+local SaveConfigButton = ConfigTab:Button({
+    Title = "Save Configuration",
+    Desc = "Save current settings",
+    Icon = "save",
+    Color = Color3.fromHex("#4CAF50"),
+    Callback = function()
+        -- Register all toggles and settings
+        TrixConfig:Register("AutoBlackFlash", Toggle)
+        TrixConfig:Register("AutoExecute", AutoExecToggle)
+        TrixConfig:Register("PlayerESP", PlayerESPToggle)
+        TrixConfig:Register("ItemsESP", ItemsESPToggle)
+        TrixConfig:Register("PlayerNames", PlayerNamesToggle)
+        TrixConfig:Register("BoxESP", BoxESPToggle)
+        TrixConfig:Register("Tracers", TracersToggle)
+        TrixConfig:Register("FillColor", FillColorPicker)
+        TrixConfig:Register("OutlineColor", OutlineColorPicker)
+        TrixConfig:Register("TextColor", TextColorPicker)
+        
+        TrixConfig:Save()
+        print("Configuration saved!")
+    end
+})
+
+local LoadConfigButton = ConfigTab:Button({
+    Title = "Load Configuration",
+    Desc = "Load saved settings",
+    Icon = "folder-open",
+    Color = Color3.fromHex("#2196F3"),
+    Callback = function()
+        TrixConfig:Load()
+        print("Configuration loaded!")
+    end
+})
+
+local DeleteConfigButton = ConfigTab:Button({
+    Title = "Delete Configuration",
+    Desc = "Delete saved config file",
+    Icon = "trash",
+    Color = Color3.fromHex("#F44336"),
+    Callback = function()
+        TrixConfig:Delete()
+        print("Configuration deleted!")
+    end
+})
+
+local ResetConfigButton = ConfigTab:Button({
+    Title = "Reset Configuration",
+    Desc = "Reset all settings to default",
+    Icon = "refresh-ccw",
+    Color = Color3.fromHex("#FF9800"),
+    Callback = function()
+        -- Reset all toggles to default values
+        ABFY = false
+        AutoExecute = true
+        PlayerESPEnabled = false
+        ItemsESPEnabled = false
+        PlayerNamesEnabled = true
+        BoxESPEnabled = false
+        TracersEnabled = false
+        ESPFillColor = Color3.fromRGB(255, 0, 0)
+        ESPOutlineColor = Color3.fromRGB(255, 255, 255)
+        ESPTextColor = Color3.fromRGB(255, 255, 255)
+        
+        -- Disable all ESP features
+        if PlayerESPEnabled then disablePlayerESP() end
+        if ItemsESPEnabled then disableItemsESP() end
+        removePlayerNames()
+        removeBoxESP()
+        removeTracers()
+        
+        print("Configuration reset to defaults!")
+    end
+})
+
+-- Player ESP Functions
+function enablePlayerESP()
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+    
+    local function createESPForPlayer(player)
+        if player == LocalPlayer then return end
+        
+        local function addHighlight(character)
+            if character:FindFirstChild("PlayerESPHighlight") then return end
+            
+            local highlight = Instance.new("Highlight")
+            highlight.Name = "PlayerESPHighlight"
+            highlight.FillColor = ESPFillColor
+            highlight.OutlineColor = ESPOutlineColor
+            highlight.FillTransparency = 0.5
+            highlight.OutlineTransparency = 0
+            highlight.Parent = character
+            
+            playerHighlights[player] = highlight
+            
+            -- Add player name if enabled
+            if PlayerNamesEnabled then
+                addPlayerName(player, character)
+            end
+        end
+        
+        if player.Character then
+            addHighlight(player.Character)
+        end
+        
+        local charConn = player.CharacterAdded:Connect(function(character)
+            if PlayerESPEnabled then
+                task.wait(0.1)
+                addHighlight(character)
+            end
+        end)
+        
+        table.insert(playerESPConnections, charConn)
+    end
+    
+    -- Add ESP to existing players
+    for _, player in pairs(Players:GetPlayers()) do
+        createESPForPlayer(player)
+    end
+    
+    -- Add ESP to new players
+    local playerConn = Players.PlayerAdded:Connect(function(player)
+        if PlayerESPEnabled then
+            createESPForPlayer(player)
+        end
+    end)
+    
+    table.insert(playerESPConnections, playerConn)
+    
+    -- Start update loops for misc ESP
+    startMiscESPUpdates()
+end
+
+function disablePlayerESP()
+    -- Disconnect all connections
+    for _, connection in pairs(playerESPConnections) do
+        if connection then
+            connection:Disconnect()
+        end
+    end
+    playerESPConnections = {}
+    
+    -- Remove all highlights
+    for player, highlight in pairs(playerHighlights) do
+        if highlight then
+            highlight:Destroy()
+        end
+    end
+    playerHighlights = {}
+    
+    -- Remove highlights from all characters
+    for _, player in pairs(game:GetService("Players"):GetPlayers()) do
+        if player.Character then
+            local highlight = player.Character:FindFirstChild("PlayerESPHighlight")
+            if highlight then
+                highlight:Destroy()
+            end
+        end
+    end
+    
+    -- Clean up misc ESP
+    removePlayerNames()
+    removeBoxESP()
+    removeTracers()
+end
+
+function updatePlayerESPColors()
+    for player, highlight in pairs(playerHighlights) do
+        if highlight and highlight.Parent then
+            highlight.FillColor = ESPFillColor
+            highlight.OutlineColor = ESPOutlineColor
+        end
+    end
+end
+
+-- Player Names Functions
+function addPlayerName(player, character)
+    local head = character:FindFirstChild("Head")
+    if not head then return end
+    
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "PlayerNameESP"
+    billboard.AlwaysOnTop = true
+    billboard.Size = UDim2.new(0, 200, 0, 50)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.Adornee = head
+    billboard.Parent = head
+    
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Text = player.Name
+    textLabel.TextColor3 = ESPTextColor
+    textLabel.TextSize = 16
+    textLabel.FontFace = Font.new("rbxassetid://12187375716", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+    textLabel.TextStrokeTransparency = 0.5
+    textLabel.Parent = billboard
+    
+    nameESPs[player] = billboard
+end
+
+function updatePlayerNames()
+    if not PlayerESPEnabled then return end
+    
+    for _, player in pairs(game:GetService("Players"):GetPlayers()) do
+        if player ~= game:GetService("Players").LocalPlayer and player.Character then
+            local head = player.Character:FindFirstChild("Head")
+            if head and not head:FindFirstChild("PlayerNameESP") then
+                addPlayerName(player, player.Character)
+            end
+        end
+    end
+end
+
+function removePlayerNames()
+    for player, billboard in pairs(nameESPs) do
+        if billboard then
+            billboard:Destroy()
+        end
+    end
+    nameESPs = {}
+    
+    for _, player in pairs(game:GetService("Players"):GetPlayers()) do
+        if player.Character then
+            local head = player.Character:FindFirstChild("Head")
+            if head then
+                local billboard = head:FindFirstChild("PlayerNameESP")
+                if billboard then
+                    billboard:Destroy()
+                end
+            end
+        end
+    end
+end
+
+-- Box ESP Functions
+function updateBoxESP()
+    if not PlayerESPEnabled then return end
+    
+    local Players = game:GetService("Players")
+    local Camera = workspace.CurrentCamera
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= Players.LocalPlayer and player.Character then
+            if not boxESPs[player] then
+                createBoxForPlayer(player)
+            end
+        end
+    end
+end
+
+function createBoxForPlayer(player)
+    local box = Drawing.new("Square")
+    box.Visible = false
+    box.Color = ESPOutlineColor
+    box.Thickness = 2
+    box.Transparency = 1
+    box.Filled = false
+    
+    boxESPs[player] = box
+end
+
+function removeBoxESP()
+    for player, box in pairs(boxESPs) do
+        if box then
+            box:Remove()
+        end
+    end
+    boxESPs = {}
+end
+
+-- Tracers Functions
+function updateTracers()
+    if not PlayerESPEnabled then return end
+    
+    local Players = game:GetService("Players")
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= Players.LocalPlayer and player.Character then
+            if not tracerESPs[player] then
+                createTracerForPlayer(player)
+            end
+        end
+    end
+end
+
+function createTracerForPlayer(player)
+    local line = Drawing.new("Line")
+    line.Visible = false
+    line.Color = ESPOutlineColor
+    line.Thickness = 2
+    line.Transparency = 1
+    
+    tracerESPs[player] = line
+end
+
+function removeTracers()
+    for player, line in pairs(tracerESPs) do
+        if line then
+            line:Remove()
+        end
+    end
+    tracerESPs = {}
+end
+
+-- Skeleton Functions
+
+-- Update loop for Drawing-based ESP
+function startMiscESPUpdates()
+    local RunService = game:GetService("RunService")
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+    local Camera = workspace.CurrentCamera
+    
+    local updateConn = RunService.RenderStepped:Connect(function()
+        if not PlayerESPEnabled then return end
+        
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                local character = player.Character
+                local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+                
+                if humanoidRootPart then
+                    -- Update Box ESP
+                    if BoxESPEnabled and boxESPs[player] then
+                        local box = boxESPs[player]
+                        local vector, onScreen = Camera:WorldToViewportPoint(humanoidRootPart.Position)
+                        
+                        if onScreen then
+                            local head = character:FindFirstChild("Head")
+                            local headPos = head and Camera:WorldToViewportPoint((head.CFrame * CFrame.new(0, 0.5, 0)).Position)
+                            local legPos = Camera:WorldToViewportPoint((humanoidRootPart.CFrame * CFrame.new(0, -3, 0)).Position)
+                            
+                            if headPos and legPos then
+                                local height = math.abs(headPos.Y - legPos.Y)
+                                local width = height / 2
+                                
+                                box.Size = Vector2.new(width, height)
+                                box.Position = Vector2.new(vector.X - width / 2, vector.Y - height / 2)
+                                box.Visible = true
+                                box.Color = ESPOutlineColor
+                            end
+                        else
+                            box.Visible = false
+                        end
+                    end
+                    
+                    -- Update Tracers
+                    if TracersEnabled and tracerESPs[player] then
+                        local line = tracerESPs[player]
+                        local vector, onScreen = Camera:WorldToViewportPoint(humanoidRootPart.Position)
+                        
+                        if onScreen then
+                            local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                            line.From = screenCenter
+                            line.To = Vector2.new(vector.X, vector.Y)
+                            line.Visible = true
+                            line.Color = ESPOutlineColor
+                        else
+                            line.Visible = false
+                        end
+                    end
+                end
+            end
+        end
+    end)
+    
+    table.insert(playerESPConnections, updateConn)
+end
+
+function updateItemESPColors()
+    local workspace = game:GetService("Workspace")
+    local itemsFolder = workspace:FindFirstChild("Items")
+    
+    if itemsFolder then
+        for _, item in pairs(itemsFolder:GetDescendants()) do
+            if item:IsA("BillboardGui") and item.Name == "ItemESP" then
+                local textLabel = item:FindFirstChildOfClass("TextLabel")
+                if textLabel then
+                    textLabel.TextColor3 = ESPTextColor
+                end
+            end
+        end
+    end
+end
+
+-- Items ESP Functions
+function enableItemsESP()
+    local workspace = game:GetService("Workspace")
+    local itemsFolder = workspace:FindFirstChild("Items")
+    
+    if not itemsFolder then
+        warn("Items ESP: Items folder not found in workspace!")
+        return
+    end
+    
+    local function createESP(item)
+        if item:IsA("BasePart") or item:IsA("Model") then
+            -- Create BillboardGui
+            local billboard = Instance.new("BillboardGui")
+            billboard.Name = "ItemESP"
+            billboard.AlwaysOnTop = true
+            billboard.Size = UDim2.new(0, 100, 0, 50)
+            billboard.StudsOffset = Vector3.new(0, 2, 0)
+            billboard.Adornee = item:IsA("Model") and item.PrimaryPart or item
+            billboard.Parent = item
+            
+            -- Create TextLabel
+            local textLabel = Instance.new("TextLabel")
+            textLabel.Size = UDim2.new(1, 0, 0.5, 0)
+            textLabel.BackgroundTransparency = 1
+            textLabel.Text = item.Name
+            textLabel.TextColor3 = ESPTextColor
+            textLabel.TextSize = 14
+            textLabel.FontFace = Font.new("rbxassetid://12187375716", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+            textLabel.TextStrokeTransparency = 0.5
+            textLabel.Parent = billboard
+            
+            -- Create distance label
+            local distanceLabel = Instance.new("TextLabel")
+            distanceLabel.Size = UDim2.new(1, 0, 0.5, 0)
+            distanceLabel.Position = UDim2.new(0, 0, 0.5, 0)
+            distanceLabel.BackgroundTransparency = 1
+            distanceLabel.Text = ""
+            distanceLabel.TextColor3 = ESPTextColor
+            distanceLabel.TextSize = 12
+            distanceLabel.FontFace = Font.new("rbxassetid://12187375716", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+            distanceLabel.TextStrokeTransparency = 0.5
+            distanceLabel.Parent = billboard
+            
+            -- Update distance
+            local connection = game:GetService("RunService").RenderStepped:Connect(function()
+                if not ItemsESPEnabled or not item.Parent then
+                    billboard:Destroy()
+                    connection:Disconnect()
+                    return
+                end
+                
+                local player = game:GetService("Players").LocalPlayer
+                if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    local itemPos = item:IsA("Model") and (item.PrimaryPart and item.PrimaryPart.Position or item:GetModelCFrame().Position) or item.Position
+                    local distance = (player.Character.HumanoidRootPart.Position - itemPos).Magnitude
+                    distanceLabel.Text = string.format("%.1f studs", distance)
+                end
+            end)
+            
+            table.insert(itemESPConnections, connection)
+        end
+    end
+    
+    -- Create ESP for existing items
+    for _, item in pairs(itemsFolder:GetChildren()) do
+        createESP(item)
+    end
+    
+    -- Create ESP for new items
+    local connection = itemsFolder.ChildAdded:Connect(function(item)
+        if ItemsESPEnabled then
+            task.wait(0.1)
+            createESP(item)
+        end
+    end)
+    
+    table.insert(itemESPConnections, connection)
+end
+
+function disableItemsESP()
+    -- Disconnect all connections
+    for _, connection in pairs(itemESPConnections) do
+        if connection then
+            connection:Disconnect()
+        end
+    end
+    itemESPConnections = {}
+    
+    -- Remove all ESP billboards
+    local workspace = game:GetService("Workspace")
+    local itemsFolder = workspace:FindFirstChild("Items")
+    
+    if itemsFolder then
+        for _, item in pairs(itemsFolder:GetDescendants()) do
+            if item:IsA("BillboardGui") and item.Name == "ItemESP" then
+                item:Destroy()
+            end
+        end
+    end
+end
+
+-- Auto Black Flash (namecall hook - simplified)
+task.spawn(function()
+    local Players = game:GetService("Players")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local LocalPlayer = Players.LocalPlayer
+
+    local cancelNextDF = false
+    local pendingDF = false
+    local ignoreNextFire = false -- Flag to ignore our own fires
+
+    -- Wait for game detection
+    while currentGame == "Unknown" do
+        task.wait(0.1)
+    end
+    
+    print("Auto Black Flash: Initialized for " .. currentGame)
+
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        local method = getnamecallmethod()
+
+        -- Detect RightActivated -> cancel pending Divergent Fist (Jujutsu Shenanigans only)
+        if currentGame == "Jujutsu Shenanigans" and method == "FireServer" and self.Name == "RightActivated" then
+            local parent = self.Parent
+            if parent and parent.Name == "RE" then
+                local service = parent.Parent
+                if service and service.Name == "ItadoriService" then
+                    if pendingDF then
+                        cancelNextDF = true
+                        pendingDF = false
+                        print("Auto Black Flash: Cancelled due to RightActivated")
+                    end
+                end
+            end
+        end
+
+        -- Detect Divergent Fist for JUJUTSU SHENANIGANS
+        if currentGame == "Jujutsu Shenanigans" and method == "FireServer" and self.Name == "Activated" then
+            local parent = self.Parent
+            if parent and parent.Name == "RE" then
+                local service = parent.Parent
+                if service and service.Name == "DivergentFistService" then
+                    -- Check if this is our own fire (ignore it)
+                    if ignoreNextFire then
+                        ignoreNextFire = false
+                        return oldNamecall(self, ...)
+                    end
+                    
+                    -- Divergent Fist fired by user! Now check if ABFY is enabled
+                    if ABFY and not pendingDF then
+                        pendingDF = true
+                        cancelNextDF = false
+
+                        task.spawn(function()
+                            task.wait(0.31)
+
+                            if ABFY and not cancelNextDF then
+                                ignoreNextFire = true -- Set flag before firing
+                                pcall(function()
+                                    local character = LocalPlayer.Character
+                                    if character then
+                                        local moveset = character:FindFirstChild("Moveset")
+                                        if moveset then
+                                            local divergentFist = moveset:FindFirstChild("Divergent Fist")
+                                            if divergentFist then
+                                                ReplicatedStorage.Knit.Knit.Services.DivergentFistService.RE.Activated:FireServer(divergentFist)
+                                                print("Auto Black Flash: Executed!")
+                                            end
+                                        end
+                                    end
+                                end)
+                            else
+                                print("Auto Black Flash: Cancelled")
+                            end
+
+                            pendingDF = false
+                            cancelNextDF = false
+                        end)
+                    end
+                end
+            end
+        end
+
+        -- Detect Divergent Fist for JUMP SHOWDOWN
+        if currentGame == "Jump Showdown" and method == "FireServer" and self.Name == "AttackInput" then
+            local args = {...}
+            if args[1] == "Divergent Fist" then
+                -- Check if this is our own fire (ignore it)
+                if ignoreNextFire then
+                    ignoreNextFire = false
+                    return oldNamecall(self, ...)
+                end
+                
+                -- Divergent Fist fired by user! Now check if ABFY is enabled
+                if ABFY and not pendingDF then
+                    pendingDF = true
+
+                    task.spawn(function()
+                        task.wait(0.31)
+
+                        if ABFY then
+                            ignoreNextFire = true -- Set flag before firing
+                            pcall(function()
+                                local remotes = LocalPlayer:FindFirstChild("Remotes")
+                                if remotes then
+                                    local combat = remotes:FindFirstChild("Combat")
+                                    if combat then
+                                        local attackInput = combat:FindFirstChild("AttackInput")
+                                        if attackInput then
+                                            attackInput:FireServer("Divergent Fist")
+                                            print("Auto Black Flash: Executed (Jump Showdown)!")
+                                        end
+                                    end
+                                end
+                            end)
+                        end
+
+                        pendingDF = false
+                    end)
+                end
+            end
+        end
+
+        return oldNamecall(self, ...)
+    end)
+
+    print("Auto Black Flash: Active for " .. currentGame .. "!")
+end)
