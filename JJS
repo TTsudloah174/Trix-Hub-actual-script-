@@ -16,16 +16,16 @@ local Window = WindUI:CreateWindow({
     ScrollBarEnabled = false,
     User = {
         Enabled = true,
-        Anonymous = false,
+        Anonymous = true,
         Callback = function()
             print("clicked")
         end,
     },
     KeySystem = {
-        Key = { "meekid choap party", "," },
+        Key = { "m", "," },
         Note = "Key System",
         URL = "",
-        SaveKey = true,
+        SaveKey = false,
     },
 })
 
@@ -296,50 +296,88 @@ local TracersToggle = MiscSection:Toggle({
 
 -- Config Tab Elements
 local ConfigManager = Window.ConfigManager
-local TrixConfig = ConfigManager:CreateConfig("TrixHubConfig")
+local selectedConfig = "Config1"
+local configList = {"Config1", "Config2", "Config3"}
+
+local ConfigDropdown = ConfigTab:Dropdown({
+    Title = "Select Configuration",
+    Values = {
+        {
+            Title = "Config 1",
+            Desc = "First configuration slot",
+            Icon = "file",
+            Callback = function()
+                selectedConfig = "Config1"
+                print("Selected: Config1")
+            end
+        },
+        {
+            Title = "Config 2",
+            Desc = "Second configuration slot",
+            Icon = "file",
+            Callback = function()
+                selectedConfig = "Config2"
+                print("Selected: Config2")
+            end
+        },
+        {
+            Title = "Config 3",
+            Desc = "Third configuration slot",
+            Icon = "file",
+            Callback = function()
+                selectedConfig = "Config3"
+                print("Selected: Config3")
+            end
+        },
+    }
+})
 
 local SaveConfigButton = ConfigTab:Button({
     Title = "Save Configuration",
-    Desc = "Save current settings",
+    Desc = "Save current settings to selected config",
     Icon = "save",
     Color = Color3.fromHex("#4CAF50"),
     Callback = function()
-        -- Register all toggles and settings
-        TrixConfig:Register("AutoBlackFlash", Toggle)
-        TrixConfig:Register("AutoExecute", AutoExecToggle)
-        TrixConfig:Register("PlayerESP", PlayerESPToggle)
-        TrixConfig:Register("ItemsESP", ItemsESPToggle)
-        TrixConfig:Register("PlayerNames", PlayerNamesToggle)
-        TrixConfig:Register("BoxESP", BoxESPToggle)
-        TrixConfig:Register("Tracers", TracersToggle)
-        TrixConfig:Register("FillColor", FillColorPicker)
-        TrixConfig:Register("OutlineColor", OutlineColorPicker)
-        TrixConfig:Register("TextColor", TextColorPicker)
+        local config = ConfigManager:CreateConfig(selectedConfig)
         
-        TrixConfig:Save()
-        print("Configuration saved!")
+        -- Register all toggles and settings
+        config:Register("AutoBlackFlash", Toggle)
+        config:Register("AutoExecute", AutoExecToggle)
+        config:Register("PlayerESP", PlayerESPToggle)
+        config:Register("ItemsESP", ItemsESPToggle)
+        config:Register("PlayerNames", PlayerNamesToggle)
+        config:Register("BoxESP", BoxESPToggle)
+        config:Register("Tracers", TracersToggle)
+        config:Register("FillColor", FillColorPicker)
+        config:Register("OutlineColor", OutlineColorPicker)
+        config:Register("TextColor", TextColorPicker)
+        
+        config:Save()
+        print("Configuration saved to: " .. selectedConfig)
     end
 })
 
 local LoadConfigButton = ConfigTab:Button({
     Title = "Load Configuration",
-    Desc = "Load saved settings",
+    Desc = "Load settings from selected config",
     Icon = "folder-open",
     Color = Color3.fromHex("#2196F3"),
     Callback = function()
-        TrixConfig:Load()
-        print("Configuration loaded!")
+        local config = ConfigManager:CreateConfig(selectedConfig)
+        config:Load()
+        print("Configuration loaded from: " .. selectedConfig)
     end
 })
 
 local DeleteConfigButton = ConfigTab:Button({
     Title = "Delete Configuration",
-    Desc = "Delete saved config file",
+    Desc = "Delete selected config file",
     Icon = "trash",
     Color = Color3.fromHex("#F44336"),
     Callback = function()
-        TrixConfig:Delete()
-        print("Configuration deleted!")
+        local config = ConfigManager:CreateConfig(selectedConfig)
+        config:Delete()
+        print("Configuration deleted: " .. selectedConfig)
     end
 })
 
