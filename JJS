@@ -16,16 +16,16 @@ local Window = WindUI:CreateWindow({
     ScrollBarEnabled = false,
     User = {
         Enabled = true,
-        Anonymous = true,
+        Anonymous = false,
         Callback = function()
             print("clicked")
         end,
     },
     KeySystem = {
-        Key = { "m", "," },
+        Key = { "meekid choap party", "," },
         Note = "Key System",
         URL = "",
-        SaveKey = false,
+        SaveKey = true,
     },
 })
 
