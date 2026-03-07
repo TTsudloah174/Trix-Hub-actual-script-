@@ -1237,11 +1237,16 @@ function enableLockOn()
                     if myHumanoid.Health > 0 then
                         local aimTarget = targetHead or targetRoot
                         
-                        -- Make character face target
-                        local directionToTarget = (Vector3.new(targetRoot.Position.X, myRoot.Position.Y, targetRoot.Position.Z) - myRoot.Position).Unit
-                        myRoot.CFrame = CFrame.new(myRoot.Position, myRoot.Position + directionToTarget)
+                        -- Check if shift lock is enabled
+                        local isShiftLocked = UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter
                         
-                        -- Make camera look at target
+                        if not isShiftLocked then
+                            -- Make character face target (only when NOT shift locked)
+                            local directionToTarget = (Vector3.new(targetRoot.Position.X, myRoot.Position.Y, targetRoot.Position.Z) - myRoot.Position).Unit
+                            myRoot.CFrame = CFrame.new(myRoot.Position, myRoot.Position + directionToTarget)
+                        end
+                        
+                        -- Always make camera look at target
                         local lookVector = (aimTarget.Position - Camera.CFrame.Position).Unit
                         Camera.CFrame = CFrame.new(Camera.CFrame.Position, Camera.CFrame.Position + lookVector)
                     end
