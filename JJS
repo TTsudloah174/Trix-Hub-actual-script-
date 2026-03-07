@@ -1240,15 +1240,26 @@ function enableLockOn()
                         -- Check if shift lock is enabled
                         local isShiftLocked = UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter
                         
-                        if not isShiftLocked then
-                            -- Make character face target (only when NOT shift locked)
+                        if isShiftLocked then
+                            -- Shift lock: Rotate character using angle calculation
+                            myHumanoid.AutoRotate = true
                             local directionToTarget = (Vector3.new(targetRoot.Position.X, myRoot.Position.Y, targetRoot.Position.Z) - myRoot.Position).Unit
-                            myRoot.CFrame = CFrame.new(myRoot.Position, myRoot.Position + directionToTarget)
+                            if directionToTarget.Magnitude > 0 then
+                                local angle = math.atan2(directionToTarget.X, directionToTarget.Z)
+                                myRoot.CFrame = CFrame.new(myRoot.Position) * CFrame.Angles(0, angle, 0)
+                            end
+                        else
+                            -- Normal: Rotate character directly
+                            local directionToTarget = (Vector3.new(targetRoot.Position.X, myRoot.Position.Y, targetRoot.Position.Z) - myRoot.Position).Unit
+                            if directionToTarget.Magnitude > 0 then
+                                myRoot.CFrame = CFrame.new(myRoot.Position, myRoot.Position + directionToTarget)
+                            end
                         end
                         
-                        -- Always make camera look at target
-                        local lookVector = (aimTarget.Position - Camera.CFrame.Position).Unit
-                        Camera.CFrame = CFrame.new(Camera.CFrame.Position, Camera.CFrame.Position + lookVector)
+                        -- Camera follows target (preserve existing camera offset/distance)
+                        local currentCamPos = Camera.CFrame.Position
+                        local lookAtTarget = (aimTarget.Position - currentCamPos).Unit
+                        Camera.CFrame = CFrame.new(currentCamPos, currentCamPos + lookAtTarget)
                     end
                 end
                 
