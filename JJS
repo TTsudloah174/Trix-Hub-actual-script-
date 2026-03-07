@@ -32,7 +32,7 @@ local Window = WindUI:CreateWindow({
 -- Tabs
 local CombatTab = Window:Tab({
     Title = "Combat Assist",
-    Icon = "crosshair",
+    Icon = "swords",
     Locked = false,
 })
 
@@ -1041,7 +1041,7 @@ task.spawn(function()
                         pendingDF = true
 
                         task.spawn(function()
-                            task.wait(0.5)
+                            task.wait(0.75)
 
                             if ABFT then
                                 ignoreNextFire = true -- Set flag before firing
