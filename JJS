@@ -30,6 +30,12 @@ local Window = WindUI:CreateWindow({
 })
 
 -- Tabs
+local CombatTab = Window:Tab({
+    Title = "Combat Assist",
+    Icon = "crosshair",
+    Locked = false,
+})
+
 local ATab = Window:Tab({
     Title = "Auto Function",
     Icon = "crosshair",
@@ -56,6 +62,7 @@ local ConfigTab = Window:Tab({
 
 -- Global Variables
 local ABFY = false
+local ABFT = false
 local AutoExecute = true
 local currentGame = "Unknown"
 local ItemsESPEnabled = false
@@ -63,6 +70,13 @@ local itemESPConnections = {}
 local PlayerESPEnabled = false
 local playerESPConnections = {}
 local playerHighlights = {}
+
+-- Lock On Variables
+local LockOnEnabled = false
+local LockOnTarget = nil
+local LockOnDecal = nil
+local LockOnKeybind = "V"
+local LockOnConnection = nil
 
 -- ESP Customization Variables
 local ESPFillColor = Color3.fromRGB(255, 0, 0)
@@ -116,6 +130,23 @@ local Toggle = ATab:Toggle({
     end
 })
 
+local ToggleTodo = ATab:Toggle({
+    Flag = "AutoBlackFlashTodo",
+    Title = "Auto Black Flash",
+    Desc = "For Todo",
+    Icon = "zap",
+    Type = "Toggle",
+    Value = false,
+    Callback = function(state)
+        ABFT = state
+        if state then
+            print("Auto Black Flash (Todo): ENABLED")
+        else
+            print("Auto Black Flash (Todo): DISABLED")
+        end
+    end
+})
+
 -- Elements (Settings Tab)
 local AutoExecToggle = STab:Toggle({
     Flag = "AutoExecute",
@@ -134,6 +165,37 @@ local AutoExecToggle = STab:Toggle({
     end
 })
 
+local LockOnKeybindSetting = STab:Keybind({
+    Flag = "LockOnKeybind",
+    Title = "Lock On Keybind",
+    Desc = "Keybind to toggle lock on (PC only)",
+    Value = "V",
+    Callback = function(key)
+        LockOnKeybind = key
+        print("Lock On Keybind set to: " .. key)
+    end
+})
+
+-- Combat Assist Tab Elements
+local LockOnToggle = CombatTab:Toggle({
+    Flag = "LockOn",
+    Title = "Lock On",
+    Desc = "Aimbot with target indicator",
+    Icon = "target",
+    Type = "Toggle",
+    Value = false,
+    Callback = function(state)
+        LockOnEnabled = state
+        if state then
+            print("Lock On: ENABLED")
+            enableLockOn()
+        else
+            print("Lock On: DISABLED")
+            disableLockOn()
+        end
+    end
+})
+
 -- Auto Execute Setup (runs after UI is created)
 task.spawn(function()
     -- Get the script URL from a global variable (set this before running the script)
@@ -141,23 +203,16 @@ task.spawn(function()
     
     game:GetService("Players").LocalPlayer.OnTeleport:Connect(function(State)
         if AutoExecute and State == Enum.TeleportState.Started then
-            local success, placeName = pcall(function()
-                return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name
-            end)
-
-            if success and placeName 
-                and string.find(string.lower(placeName), "jujutsu") 
-                and string.find(string.lower(placeName), "shenanigan") then
-                queue_on_teleport([[
-                    repeat task.wait() until game:IsLoaded()
-                    local url = getgenv().TrixHubURL or "]] .. scriptURL .. [["
-                    loadstring(game:HttpGet(url))()
-                ]])
-                print("Auto Execute: Queued script for next server")
-            end
+            -- Re-execute on ANY teleport/map change
+            queue_on_teleport([[
+                repeat task.wait() until game:IsLoaded()
+                local url = getgenv().TrixHubURL or "]] .. scriptURL .. [["
+                loadstring(game:HttpGet(url))()
+            ]])
+            print("Auto Execute: Queued script for next server/map")
         end
     end)
-    print("Auto Execute: Ready")
+    print("Auto Execute: Ready - will re-execute on any teleport")
     print("Auto Execute: Set getgenv().TrixHubURL before loading to use custom URL")
 end)
 
@@ -969,8 +1024,348 @@ task.spawn(function()
             end
         end
 
+        -- Detect Brute Force for JUJUTSU SHENANIGANS (Todo)
+        if currentGame == "Jujutsu Shenanigans" and method == "FireServer" and self.Name == "Activated" then
+            local parent = self.Parent
+            if parent and parent.Name == "RE" then
+                local service = parent.Parent
+                if service and service.Name == "BruteForceService" then
+                    -- Check if this is our own fire (ignore it)
+                    if ignoreNextFire then
+                        ignoreNextFire = false
+                        return oldNamecall(self, ...)
+                    end
+                    
+                    -- Brute Force fired by user! Now check if ABFT is enabled
+                    if ABFT and not pendingDF then
+                        pendingDF = true
+
+                        task.spawn(function()
+                            task.wait(0.5)
+
+                            if ABFT then
+                                ignoreNextFire = true -- Set flag before firing
+                                pcall(function()
+                                    local character = LocalPlayer.Character
+                                    if character then
+                                        local moveset = character:FindFirstChild("Moveset")
+                                        if moveset then
+                                            local bruteForce = moveset:FindFirstChild("Brute Force")
+                                            if bruteForce then
+                                                ReplicatedStorage.Knit.Knit.Services.BruteForceService.RE.Activated:FireServer(bruteForce)
+                                                print("Auto Black Flash (Todo): Executed!")
+                                            end
+                                        end
+                                    end
+                                end)
+                            end
+
+                            pendingDF = false
+                        end)
+                    end
+                end
+            end
+        end
+
         return oldNamecall(self, ...)
     end)
 
     print("Auto Black Flash: Active for " .. currentGame .. "!")
 end)
+
+-- Lock On Functions
+function enableLockOn()
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+    local UserInputService = game:GetService("UserInputService")
+    local RunService = game:GetService("RunService")
+    local Camera = workspace.CurrentCamera
+    
+    -- Create mobile UI button
+    local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+    local lockOnButton = nil
+    
+    if isMobile then
+        local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+        
+        -- Create mobile lock on button
+        local screenGui = Instance.new("ScreenGui")
+        screenGui.Name = "LockOnMobileUI"
+        screenGui.ResetOnSpawn = false
+        screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        screenGui.Parent = PlayerGui
+        
+        local button = Instance.new("ImageButton")
+        button.Name = "LockOnButton"
+        button.Size = UDim2.new(0, 60, 0, 60)
+        button.Position = UDim2.new(1, -80, 0.5, -30)
+        button.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        button.BackgroundTransparency = 0.3
+        button.BorderSizePixel = 0
+        button.Image = "rbxassetid://73466246454364"
+        button.Parent = screenGui
+        
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(1, 0)
+        corner.Parent = button
+        
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = Color3.fromRGB(255, 255, 255)
+        stroke.Thickness = 2
+        stroke.Transparency = 0.5
+        stroke.Parent = button
+        
+        -- Create lock button for mobile UI
+        local lockButton = Instance.new("TextButton")
+        lockButton.Name = "LockButton"
+        lockButton.Size = UDim2.new(0, 30, 0, 30)
+        lockButton.Position = UDim2.new(0, -35, 0, 15)
+        lockButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        lockButton.BackgroundTransparency = 0.3
+        lockButton.BorderSizePixel = 0
+        lockButton.Text = "🔓"
+        lockButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        lockButton.TextSize = 16
+        lockButton.Font = Enum.Font.GothamBold
+        lockButton.Parent = button
+        
+        local lockCorner = Instance.new("UICorner")
+        lockCorner.CornerRadius = UDim.new(1, 0)
+        lockCorner.Parent = lockButton
+        
+        local lockStroke = Instance.new("UIStroke")
+        lockStroke.Color = Color3.fromRGB(255, 255, 255)
+        lockStroke.Thickness = 2
+        lockStroke.Transparency = 0.5
+        lockStroke.Parent = lockButton
+        
+        lockOnButton = button
+        
+        -- Lock/Unlock functionality
+        local isLocked = false
+        
+        lockButton.MouseButton1Click:Connect(function()
+            isLocked = not isLocked
+            if isLocked then
+                lockButton.Text = "🔒"
+                lockButton.BackgroundColor3 = Color3.fromRGB(60, 20, 20)
+                button.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+            else
+                lockButton.Text = "🔓"
+                lockButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+                button.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+            end
+        end)
+        
+        -- Make draggable (only when unlocked)
+        local dragging = false
+        local dragStart = nil
+        local startPos = nil
+        local dragThreshold = 10 -- pixels to detect drag vs click
+        
+        button.InputBegan:Connect(function(input)
+            if isLocked then return end
+            if input.UserInputType == Enum.UserInputType.Touch then
+                dragging = false
+                dragStart = input.Position
+                startPos = button.Position
+            end
+        end)
+        
+        button.InputChanged:Connect(function(input)
+            if isLocked then return end
+            if dragStart and input.UserInputType == Enum.UserInputType.Touch then
+                local delta = input.Position - dragStart
+                local dragDistance = delta.Magnitude
+                
+                -- Only start dragging if moved more than threshold
+                if dragDistance > dragThreshold then
+                    dragging = true
+                    button.Position = UDim2.new(
+                        startPos.X.Scale,
+                        startPos.X.Offset + delta.X,
+                        startPos.Y.Scale,
+                        startPos.Y.Offset + delta.Y
+                    )
+                end
+            end
+        end)
+        
+        button.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Touch then
+                local wasDragging = dragging
+                dragging = false
+                dragStart = nil
+                
+                -- Only toggle lock if it wasn't a drag
+                if not wasDragging and not isLocked then
+                    toggleLockOnTarget()
+                elseif isLocked then
+                    toggleLockOnTarget()
+                end
+            end
+        end)
+    end
+    
+    -- PC keybind
+    local keybindConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        -- Convert string keybind to KeyCode enum
+        local keyCodeEnum = Enum.KeyCode[LockOnKeybind]
+        if keyCodeEnum and input.KeyCode == keyCodeEnum then
+            toggleLockOnTarget()
+        end
+    end)
+    
+    -- Update loop for lock on
+    local updateConn = RunService.RenderStepped:Connect(function()
+        if not LockOnEnabled then return end
+        
+        if LockOnTarget and LockOnTarget.Character then
+            local targetRoot = LockOnTarget.Character:FindFirstChild("HumanoidRootPart")
+            local targetHead = LockOnTarget.Character:FindFirstChild("Head")
+            local targetHumanoid = LockOnTarget.Character:FindFirstChild("Humanoid")
+            
+            if targetRoot and targetHumanoid and targetHumanoid.Health > 0 then
+                -- Aimbot - make character AND camera face target
+                local character = LocalPlayer.Character
+                if character and character:FindFirstChild("HumanoidRootPart") and character:FindFirstChild("Humanoid") then
+                    local myRoot = character.HumanoidRootPart
+                    local myHumanoid = character.Humanoid
+                    
+                    -- Only aim if not dead
+                    if myHumanoid.Health > 0 then
+                        local aimTarget = targetHead or targetRoot
+                        
+                        -- Make character face target
+                        local directionToTarget = (Vector3.new(targetRoot.Position.X, myRoot.Position.Y, targetRoot.Position.Z) - myRoot.Position).Unit
+                        myRoot.CFrame = CFrame.new(myRoot.Position, myRoot.Position + directionToTarget)
+                        
+                        -- Make camera look at target
+                        local lookVector = (aimTarget.Position - Camera.CFrame.Position).Unit
+                        Camera.CFrame = CFrame.new(Camera.CFrame.Position, Camera.CFrame.Position + lookVector)
+                    end
+                end
+                
+                -- Update decal position
+                if LockOnDecal and LockOnDecal.Parent then
+                    LockOnDecal.CFrame = targetRoot.CFrame * CFrame.new(0, 3, 0)
+                end
+            else
+                -- Target died or invalid
+                clearLockOnTarget()
+            end
+        end
+    end)
+    
+    LockOnConnection = {keybindConn, updateConn, lockOnButton}
+end
+
+function disableLockOn()
+    clearLockOnTarget()
+    
+    if LockOnConnection then
+        for _, conn in pairs(LockOnConnection) do
+            if conn then
+                if typeof(conn) == "RBXScriptConnection" then
+                    conn:Disconnect()
+                elseif typeof(conn) == "Instance" then
+                    local parent = conn.Parent
+                    if parent then
+                        parent:Destroy()
+                    end
+                end
+            end
+        end
+        LockOnConnection = nil
+    end
+end
+
+function toggleLockOnTarget()
+    if LockOnTarget then
+        clearLockOnTarget()
+    else
+        setLockOnTarget()
+    end
+end
+
+function setLockOnTarget()
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+    local Camera = workspace.CurrentCamera
+    
+    local nearestPlayer = nil
+    local nearestDistance = math.huge
+    local nearestScreenDist = math.huge
+    
+    -- Find nearest player to crosshair
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local targetRoot = player.Character:FindFirstChild("HumanoidRootPart")
+            local targetHumanoid = player.Character:FindFirstChild("Humanoid")
+            
+            if targetRoot and targetHumanoid and targetHumanoid.Health > 0 then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(targetRoot.Position)
+                
+                if onScreen then
+                    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+                    local screenDist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                    
+                    if screenDist < nearestScreenDist then
+                        nearestScreenDist = screenDist
+                        nearestPlayer = player
+                    end
+                end
+            end
+        end
+    end
+    
+    if nearestPlayer then
+        LockOnTarget = nearestPlayer
+        
+        -- Create decal indicator
+        local targetRoot = nearestPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if targetRoot then
+            local part = Instance.new("Part")
+            part.Name = "LockOnIndicator"
+            part.Size = Vector3.new(4, 0.1, 4)
+            part.Anchored = true
+            part.CanCollide = false
+            part.Transparency = 1
+            part.CFrame = targetRoot.CFrame * CFrame.new(0, 3, 0)
+            
+            -- Add decal on top
+            local decal = Instance.new("Decal")
+            decal.Texture = "rbxassetid://262619584"
+            decal.Face = Enum.NormalId.Top
+            decal.Parent = part
+            
+            -- Add decal on bottom (visible from below)
+            local decalBottom = Instance.new("Decal")
+            decalBottom.Texture = "rbxassetid://262619584"
+            decalBottom.Face = Enum.NormalId.Bottom
+            decalBottom.Parent = part
+            
+            part.Parent = workspace
+            
+            LockOnDecal = part
+            
+            print("Locked onto: " .. nearestPlayer.Name)
+        end
+    else
+        print("No valid target found")
+    end
+end
+
+function clearLockOnTarget()
+    if LockOnTarget then
+        print("Unlocked from: " .. LockOnTarget.Name)
+    end
+    
+    LockOnTarget = nil
+    
+    if LockOnDecal then
+        LockOnDecal:Destroy()
+        LockOnDecal = nil
+    end
+end
